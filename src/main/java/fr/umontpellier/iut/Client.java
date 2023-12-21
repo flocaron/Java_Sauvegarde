@@ -2,6 +2,8 @@ package fr.umontpellier.iut;
 import java.io.*;
 import java.net.*;
 import java.nio.file.*;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.zip.*;
 
 public class Client {
@@ -15,13 +17,15 @@ public class Client {
   }
 
   public void sendFolder(String folderPath) throws IOException {
+    Set<String> allowedExtensions = loadAllowedExtensions();
+
     File folder = new File(folderPath);
     if (!folder.isDirectory()) {
       throw new IllegalArgumentException("Le chemin fourni n'est pas un dossier valide");
     }
 
-    // Création d'une archive du dossier
-    File zipFile = createZipFile(folder);
+    // Création d'une archive du dossier avec filtrage des extensions
+    File zipFile = createZipFile(folder, allowedExtensions);
 
     // Envoi de l'archive au serveur
     sendFileToServer(zipFile);
@@ -30,25 +34,48 @@ public class Client {
     zipFile.delete();
   }
 
-  private File createZipFile(File folder) throws IOException {
+  private Set<String> loadAllowedExtensions() throws IOException {
+    Set<String> extensions = new HashSet<>();
+    try (BufferedReader br = new BufferedReader(new FileReader("src\\main\\resources\\extensions.txt"))) {
+      String line;
+      while ((line = br.readLine()) != null) {
+        extensions.add(line.trim().toLowerCase());
+      }
+    }
+    return extensions;
+  }
+
+  private File createZipFile(File folder, Set<String> allowedExtensions) throws IOException {
     File zipFile = new File(folder.getName() + ".zip");
     try (FileOutputStream fos = new FileOutputStream(zipFile);
         ZipOutputStream zos = new ZipOutputStream(fos)) {
-      zipFolder(folder, folder.getName(), zos);
+      zipFolder(folder, folder.getName(), zos, allowedExtensions);
     }
     return zipFile;
   }
 
-  private void zipFolder(File folderToZip, String parentFolder, ZipOutputStream zos) throws IOException {
+  private void zipFolder(File folderToZip, String parentFolder, ZipOutputStream zos, Set<String> allowedExtensions) throws IOException {
     for (File file : folderToZip.listFiles()) {
       if (file.isDirectory()) {
-        zipFolder(file, parentFolder + "/" + file.getName(), zos);
+        zipFolder(file, parentFolder + "/" + file.getName(), zos, allowedExtensions);
         continue;
       }
-      zos.putNextEntry(new ZipEntry(parentFolder + "/" + file.getName()));
-      Files.copy(file.toPath(), zos);
-      zos.closeEntry();
+      String extension = getFileExtension(file);
+      if (allowedExtensions.contains(extension)) {
+        zos.putNextEntry(new ZipEntry(parentFolder + "/" + file.getName()));
+        Files.copy(file.toPath(), zos);
+        zos.closeEntry();
+      }
     }
+  }
+
+  private String getFileExtension(File file) {
+    String name = file.getName();
+    int lastIndexOf = name.lastIndexOf(".");
+    if (lastIndexOf == -1) {
+      return ""; // Fichier sans extension
+    }
+    return name.substring(lastIndexOf + 1).toLowerCase();
   }
 
   private void sendFileToServer(File file) throws IOException {
@@ -68,14 +95,11 @@ public class Client {
 
   public static void main(String[] args) {
     // Exemple d'utilisation
-    Client client = new Client("127.0.0.1", 12345);
+    Client client = new Client("7.tcp.eu.ngrok.io", 16956);
     try {
       client.sendFolder("C:\\Users\\32496\\Desktop\\fichiers");
     } catch (IOException e) {
       e.printStackTrace();
     }
   }
-
-
 }
-
