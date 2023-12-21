@@ -70,7 +70,7 @@ public class Client {
     // Exemple d'utilisation
     Client client = new Client("127.0.0.1", 12345);
     try {
-      client.sendFolder("C:\\Users\\32496\\Desktop\\fichier2");
+      client.sendFolder("C:\\Users\\32496\\Desktop\\fichiers");
     } catch (IOException e) {
       e.printStackTrace();
     }
